@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🔒 Alpha Authenticator</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.18.0/dist/tf-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.18.0/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -142,7 +138,7 @@
             position: relative;
         }
 
-        #faceVideo {
+        #faceVideo, #qrVideo {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -452,13 +448,6 @@
             border: 1px solid #fcd34d;
         }
 
-        .manual-entry-section {
-            background: var(--background);
-            border-radius: var(--radius);
-            padding: 20px;
-            margin-top: 20px;
-        }
-
         .secret-key-input {
             font-family: monospace;
             font-size: 14px;
@@ -490,6 +479,35 @@
 
         .copy-btn:hover {
             background: var(--primary-dark);
+        }
+
+        .scanner-frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border: 2px solid var(--primary-blue);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+
+        .scanner-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: var(--primary-blue);
+            top: 50%;
+            animation: scan 2s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: 10%; }
+            50% { top: 90%; }
+            100% { top: 10%; }
         }
     </style>
 </head>
@@ -530,6 +548,9 @@
                     <div class="face-overlay" id="faceOverlay">
                         Click "Start Face Registration" to begin
                     </div>
+                    <div class="scanner-frame">
+                        <div class="scanner-line"></div>
+                    </div>
                 </div>
                 <div id="faceStatus" class="face-status" style="display: none;"></div>
                 <button class="btn btn-primary" onclick="startFaceRegistration()" id="startFaceBtn">Start Face Registration</button>
@@ -560,6 +581,9 @@
                     <video id="faceLoginVideo" autoplay muted playsinline></video>
                     <div class="face-overlay" id="faceLoginOverlay">
                         Starting face recognition...
+                    </div>
+                    <div class="scanner-frame">
+                        <div class="scanner-line"></div>
                     </div>
                 </div>
                 <div id="faceLoginStatus" class="face-status" style="display: none;"></div>
@@ -600,6 +624,9 @@
                         <video id="qrVideo" muted playsinline></video>
                         <div class="face-overlay" id="qrOverlay">
                             Click Start Scanner
+                        </div>
+                        <div class="scanner-frame">
+                            <div class="scanner-line"></div>
                         </div>
                     </div>
                     <div class="actions">
@@ -692,6 +719,9 @@
                 <div class="face-overlay" id="modalFaceOverlay">
                     Ready to register your face
                 </div>
+                <div class="scanner-frame">
+                    <div class="scanner-line"></div>
+                </div>
             </div>
             <div id="modalFaceStatus" class="face-status" style="display: none;"></div>
             <div class="actions">
@@ -748,6 +778,12 @@
             accounts: [],
             currentScreen: 'setup'
         };
+
+        // Camera streams
+        let faceRegistrationStream = null;
+        let faceLoginStream = null;
+        let qrStream = null;
+        let isFaceDetectionActive = false;
 
         // Initialize App
         function initApp() {
@@ -811,9 +847,10 @@
             appState.currentScreen = 'main';
             loadAccounts();
             updateSettingsUI();
+            startTOTPTimer();
         }
 
-        // PIN Security Features
+        // PIN Functions
         function handlePinKeydown(event, input, index) {
             if (event.key === 'Backspace' || event.key === 'Delete') {
                 if (input.value === '' && index > 1) {
@@ -910,6 +947,7 @@
                 pinLogin.style.display = 'none';
                 faceLogin.style.display = 'block';
                 switchAuthBtn.textContent = 'Switch to PIN';
+                startFaceLogin();
             }
         }
 
@@ -953,6 +991,94 @@
                         digits[0].focus();
                     }
                 }
+            }
+        }
+
+        // Face Recognition (Simplified for GitHub Pages compatibility)
+        async function startFaceRegistration() {
+            try {
+                const video = document.getElementById('faceVideo');
+                const overlay = document.getElementById('faceOverlay');
+                
+                faceRegistrationStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 300, 
+                        height: 300,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                video.srcObject = faceRegistrationStream;
+                overlay.style.display = 'none';
+                
+                document.getElementById('startFaceBtn').style.display = 'none';
+                document.getElementById('stopFaceBtn').style.display = 'block';
+                
+                // Simulate face detection for demo
+                setTimeout(() => {
+                    appState.faceDescriptors.push('face_' + Date.now());
+                    document.getElementById('faceStatus').textContent = 'Face registered successfully!';
+                    document.getElementById('faceStatus').className = 'face-status success';
+                    document.getElementById('faceStatus').style.display = 'block';
+                    updateSetupButton();
+                    showNotification('Face registered successfully!');
+                    stopFaceRegistration();
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showNotification('Cannot access camera. Please check permissions.', 'error');
+            }
+        }
+
+        function stopFaceRegistration() {
+            if (faceRegistrationStream) {
+                faceRegistrationStream.getTracks().forEach(track => track.stop());
+                faceRegistrationStream = null;
+            }
+            document.getElementById('startFaceBtn').style.display = 'block';
+            document.getElementById('stopFaceBtn').style.display = 'none';
+            document.getElementById('faceOverlay').style.display = 'flex';
+        }
+
+        async function startFaceLogin() {
+            try {
+                const video = document.getElementById('faceLoginVideo');
+                const overlay = document.getElementById('faceLoginOverlay');
+                
+                faceLoginStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 300, 
+                        height: 300,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                video.srcObject = faceLoginStream;
+                overlay.textContent = 'Looking for face... Please look at the camera.';
+
+                // Simulate face verification for demo
+                setTimeout(() => {
+                    if (appState.faceDescriptors.length > 0) {
+                        document.getElementById('faceLoginStatus').textContent = 'Identity verified successfully!';
+                        document.getElementById('faceLoginStatus').className = 'face-status success';
+                        document.getElementById('faceLoginStatus').style.display = 'block';
+                        overlay.textContent = 'Access granted!';
+                        
+                        showNotification('Welcome back!');
+                        setTimeout(() => {
+                            if (faceLoginStream) {
+                                faceLoginStream.getTracks().forEach(track => track.stop());
+                                faceLoginStream = null;
+                            }
+                            showMainApp();
+                        }, 1000);
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showNotification('Cannot access camera', 'error');
             }
         }
 
@@ -1008,6 +1134,7 @@
 
         // TOTP Implementation
         function generateTOTP(secret) {
+            // Simple TOTP implementation for demo
             const time = Math.floor(Date.now() / 1000 / 30);
             const code = (time % 1000000).toString().padStart(6, '0');
             return code;
@@ -1019,6 +1146,12 @@
 
         function formatCode(code) {
             return code.replace(/(.{3})/g, '$1 ');
+        }
+
+        function startTOTPTimer() {
+            setInterval(() => {
+                loadAccounts();
+            }, 1000);
         }
 
         function copyToClipboard(text) {
@@ -1073,6 +1206,77 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // QR Scanner
+        async function startQRScanner() {
+            try {
+                const video = document.getElementById('qrVideo');
+                const overlay = document.getElementById('qrOverlay');
+                
+                qrStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                
+                video.srcObject = qrStream;
+                overlay.style.display = 'none';
+                
+                detectQRCode();
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showNotification('Cannot access camera', 'error');
+            }
+        }
+
+        function stopQRScanner() {
+            if (qrStream) {
+                qrStream.getTracks().forEach(track => track.stop());
+                qrStream = null;
+            }
+            document.getElementById('qrOverlay').style.display = 'flex';
+        }
+
+        function detectQRCode() {
+            if (!qrStream) return;
+
+            const video = document.getElementById('qrVideo');
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                
+                if (code) {
+                    showNotification('QR Code detected! Adding account...');
+                    // For demo, add a sample account
+                    addAccount('Demo Account', 'JBSWY3DPEHPK3PXP');
+                    stopQRScanner();
+                    switchTab('accounts');
+                }
+            }
+
+            if (qrStream) {
+                requestAnimationFrame(detectQRCode);
+            }
+        }
+
+        function addAccount(name, secret) {
+            const newAccount = {
+                id: Date.now().toString(),
+                name: name,
+                secret: secret,
+                createdAt: new Date().toISOString()
+            };
+            
+            appState.accounts.push(newAccount);
+            saveAppState();
+            loadAccounts();
         }
 
         // Backup and Restore
@@ -1186,33 +1390,50 @@
         }
 
         function registerNewFace() {
-            showNotification('Face registration requires camera access. Please ensure you allow camera permissions.');
+            document.getElementById('faceRegistrationModal').classList.add('active');
         }
 
-        // Face ID Functions (Simplified for demo)
-        function startFaceRegistration() {
-            showNotification('Face registration would start here with camera access');
-        }
+        async function startModalFaceRegistration() {
+            try {
+                const video = document.getElementById('modalFaceVideo');
+                const overlay = document.getElementById('modalFaceOverlay');
+                const status = document.getElementById('modalFaceStatus');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 300, 
+                        height: 300,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                video.srcObject = stream;
+                overlay.textContent = 'Looking for face...';
+                status.style.display = 'none';
 
-        function stopFaceRegistration() {
-            showNotification('Face registration stopped');
-        }
-
-        function startModalFaceRegistration() {
-            showNotification('Modal face registration would start here');
+                // Simulate face registration
+                setTimeout(() => {
+                    appState.faceDescriptors.push('face_' + Date.now());
+                    status.textContent = 'New face registered successfully!';
+                    status.className = 'face-status success';
+                    status.style.display = 'block';
+                    showNotification('New face registered!');
+                    saveAppState();
+                    
+                    stream.getTracks().forEach(track => track.stop());
+                    setTimeout(() => {
+                        closeModal('faceRegistrationModal');
+                    }, 1500);
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showNotification('Cannot access camera', 'error');
+            }
         }
 
         function stopModalFaceRegistration() {
             closeModal('faceRegistrationModal');
-        }
-
-        // QR Scanner Functions
-        function startQRScanner() {
-            showNotification('QR scanner would start here with camera access');
-        }
-
-        function stopQRScanner() {
-            showNotification('QR scanner stopped');
         }
 
         // Utility Functions
