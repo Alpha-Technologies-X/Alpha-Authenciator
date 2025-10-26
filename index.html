@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpha Authenticator</title>
+    <title>🔒 Alpha Authenticator</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.18.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.18.0/dist/tf-backend-webgl.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         * {
@@ -112,6 +115,8 @@
             font-size: 24px;
             font-weight: 600;
             background: var(--background);
+            -webkit-text-security: disc;
+            text-security: disc;
         }
 
         .pin-digit:focus {
@@ -142,6 +147,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transform: scaleX(-1);
         }
 
         .face-overlay {
@@ -157,6 +163,8 @@
             color: white;
             font-size: 18px;
             font-weight: 600;
+            text-align: center;
+            padding: 20px;
         }
 
         .btn {
@@ -202,6 +210,18 @@
         .btn-danger {
             background: var(--error);
             color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            width: auto;
         }
 
         /* Main App */
@@ -351,12 +371,25 @@
             color: var(--text-primary);
         }
 
-        .form-group input {
+        .form-group input, .form-group select {
             width: 100%;
             padding: 12px;
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
             font-size: 16px;
+            background: var(--surface);
+        }
+
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            background: var(--surface);
+            resize: vertical;
+            min-height: 80px;
+            font-family: monospace;
         }
 
         .notification {
@@ -370,6 +403,7 @@
             box-shadow: var(--shadow);
             transform: translateX(400px);
             transition: transform 0.3s ease;
+            z-index: 1100;
         }
 
         .notification.show {
@@ -393,6 +427,72 @@
             margin: 16px 0;
             font-size: 14px;
         }
+
+        .face-status {
+            margin: 16px 0;
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .face-status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .face-status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .face-status.warning {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+
+        .manual-entry-section {
+            background: var(--background);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .secret-key-input {
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        .account-item .secret-display {
+            background: var(--background);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin: 12px 0;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            color: var(--text-secondary);
+        }
+
+        .copy-btn {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
     </style>
 </head>
 <body>
@@ -414,24 +514,29 @@
             <div id="pinSetup" class="auth-section">
                 <p>Create a 6-digit PIN</p>
                 <div class="pin-input">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNext(this, 1)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNext(this, 2)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNext(this, 3)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNext(this, 4)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNext(this, 5)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="setupPINComplete(this)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNext(this, 1)" onkeydown="handlePinKeydown(event, this, 1)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNext(this, 2)" onkeydown="handlePinKeydown(event, this, 2)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNext(this, 3)" onkeydown="handlePinKeydown(event, this, 3)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNext(this, 4)" onkeydown="handlePinKeydown(event, this, 4)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNext(this, 5)" onkeydown="handlePinKeydown(event, this, 5)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="setupPINComplete(this)" onkeydown="handlePinKeydown(event, this, 6)">
                 </div>
             </div>
 
             <div id="faceSetup" class="auth-section" style="display: none;">
+                <div class="instructions">
+                    <strong>Face Registration</strong>
+                    <p>Make sure you're in a well-lit area and look directly at the camera</p>
+                </div>
                 <div class="face-camera">
                     <video id="faceVideo" autoplay muted playsinline></video>
                     <div class="face-overlay" id="faceOverlay">
-                        Click Start to register your face
+                        Click "Start Face Registration" to begin
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="startFaceRegistration()">Start Face Registration</button>
-                <button class="btn btn-secondary" onclick="stopFaceRegistration()" style="display: none;" id="stopFaceBtn">Stop</button>
+                <div id="faceStatus" class="face-status" style="display: none;"></div>
+                <button class="btn btn-primary" onclick="startFaceRegistration()" id="startFaceBtn">Start Face Registration</button>
+                <button class="btn btn-secondary" onclick="stopFaceRegistration()" style="display: none;" id="stopFaceBtn">Stop Registration</button>
             </div>
 
             <button class="btn btn-primary" onclick="completeSetup()" id="completeSetupBtn" disabled>Complete Setup</button>
@@ -444,12 +549,12 @@
             
             <div id="pinLogin" class="auth-section">
                 <div class="pin-input">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 1)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 2)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 3)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 4)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 5)">
-                    <input type="number" class="pin-digit" maxlength="1" oninput="verifyPIN(this)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 1)" onkeydown="handlePinKeydown(event, this, 1)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 2)" onkeydown="handlePinKeydown(event, this, 2)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 3)" onkeydown="handlePinKeydown(event, this, 3)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 4)" onkeydown="handlePinKeydown(event, this, 4)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="moveToNextLogin(this, 5)" onkeydown="handlePinKeydown(event, this, 5)">
+                    <input type="password" class="pin-digit" maxlength="1" oninput="verifyPIN(this)" onkeydown="handlePinKeydown(event, this, 6)">
                 </div>
             </div>
 
@@ -460,16 +565,16 @@
                         Starting face recognition...
                     </div>
                 </div>
-                <button class="btn btn-secondary" onclick="switchAuthMethod()">Use PIN Instead</button>
+                <div id="faceLoginStatus" class="face-status" style="display: none;"></div>
             </div>
 
-            <button class="btn btn-secondary" onclick="switchAuthMethod()" id="switchAuthBtn" style="display: none;">Switch to Face ID</button>
+            <button class="btn btn-secondary" onclick="switchAuthMethod()" id="switchAuthBtn">Switch to Face ID</button>
         </div>
 
         <!-- Main App -->
         <div id="mainApp" class="main-app">
             <div class="header">
-                <h1>🔐 Alpha Authenticator</h1>
+                <h1>🔐 Alpha Autheciator</h1>
                 <p>Two-factor authentication</p>
             </div>
 
@@ -477,6 +582,7 @@
                 <div class="tab-buttons">
                     <button class="tab-button active" onclick="switchTab('accounts')">Accounts</button>
                     <button class="tab-button" onclick="switchTab('scan')">Scan QR</button>
+                    <button class="tab-button" onclick="switchTab('manual')">Manual Entry</button>
                     <button class="tab-button" onclick="switchTab('settings')">Settings</button>
                 </div>
 
@@ -484,7 +590,7 @@
                     <div class="account-list" id="accountList">
                         <div class="empty-state">
                             <h3>No accounts yet</h3>
-                            <p>Scan a QR code to add your first account</p>
+                            <p>Scan a QR code or manually add an account to get started</p>
                         </div>
                     </div>
                 </div>
@@ -506,18 +612,42 @@
                     </div>
                 </div>
 
+                <div id="manual-tab" class="tab-content">
+                    <div class="instructions">
+                        <strong>Manual Account Entry</strong>
+                        <p>Enter your account details and secret key to add it manually</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="manualAccountName">Account Name</label>
+                        <input type="text" id="manualAccountName" placeholder="e.g., Google, GitHub, Microsoft">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="manualSecretKey">Secret Key</label>
+                        <input type="text" id="manualSecretKey" placeholder="Enter your base32 secret key" class="secret-key-input">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="addManualAccount()">Add Account</button>
+
+                    <div class="instructions" style="margin-top: 24px;">
+                        <strong>What is a secret key?</strong>
+                        <p>A secret key is a base32 encoded string (usually 16-32 characters) that you get when setting up two-factor authentication on a service. It looks like: JBSWY3DPEHPK3PXP</p>
+                    </div>
+                </div>
+
                 <div id="settings-tab" class="tab-content">
                     <div class="backup-section">
                         <h3>🔒 Security Settings</h3>
                         <div class="form-group">
                             <label>Authentication Method:</label>
-                            <select id="securityMethod" class="btn-secondary" style="padding: 12px; width: 100%;">
+                            <select id="securityMethod" class="btn-secondary" style="padding: 12px; width: 100%;" onchange="updateSecurityMethod()">
                                 <option value="pin">PIN Code</option>
                                 <option value="face">Face ID</option>
                             </select>
                         </div>
                         <button class="btn btn-warning" onclick="showChangePIN()">Change PIN</button>
-                        <button class="btn btn-primary" onclick="registerNewFace()" style="margin-top: 12px;">Register New Face</button>
+                        <button class="btn btn-primary" onclick="registerNewFace()" style="margin-top: 12px;" id="registerFaceBtn">Register New Face</button>
                     </div>
 
                     <div class="backup-section">
@@ -541,18 +671,73 @@
             <h2>Change PIN</h2>
             <div class="form-group">
                 <label>Current PIN:</label>
-                <input type="number" id="currentPIN" placeholder="Enter current PIN">
+                <input type="password" id="currentPIN" placeholder="Enter current PIN" maxlength="6" class="pin-input-field">
             </div>
             <div class="form-group">
                 <label>New PIN (6 digits):</label>
-                <input type="number" id="newPIN" placeholder="Enter new PIN" maxlength="6">
+                <input type="password" id="newPIN" placeholder="Enter new PIN" maxlength="6" class="pin-input-field">
             </div>
             <div class="form-group">
                 <label>Confirm New PIN:</label>
-                <input type="number" id="confirmPIN" placeholder="Confirm new PIN" maxlength="6">
+                <input type="password" id="confirmPIN" placeholder="Confirm new PIN" maxlength="6" class="pin-input-field">
             </div>
             <button class="btn btn-primary" onclick="changePIN()">Update PIN</button>
             <button class="btn btn-secondary" onclick="closeModal('changePINModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div class="modal" id="faceRegistrationModal">
+        <div class="modal-content">
+            <h2>Register New Face</h2>
+            <div class="instructions">
+                <p>Make sure you're in a well-lit area and look directly at the camera</p>
+            </div>
+            <div class="face-camera">
+                <video id="modalFaceVideo" autoplay muted playsinline></video>
+                <div class="face-overlay" id="modalFaceOverlay">
+                    Ready to register your face
+                </div>
+            </div>
+            <div id="modalFaceStatus" class="face-status" style="display: none;"></div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="startModalFaceRegistration()">Start Registration</button>
+                <button class="btn btn-secondary" onclick="stopModalFaceRegistration()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="backupModal">
+        <div class="modal-content">
+            <h2>Create Backup</h2>
+            <div class="instructions">
+                <p>This will create a recovery code that you can use to restore your accounts on another device.</p>
+            </div>
+            <div class="form-group">
+                <label>Recovery Code:</label>
+                <textarea id="recoveryCode" readonly placeholder="Your recovery code will appear here..."></textarea>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="generateBackup()">Generate Backup</button>
+                <button class="btn btn-secondary" onclick="copyBackup()">Copy to Clipboard</button>
+                <button class="btn btn-secondary" onclick="closeModal('backupModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="restoreModal">
+        <div class="modal-content">
+            <h2>Restore from Backup</h2>
+            <div class="instructions">
+                <p>Paste your recovery code to restore your accounts. This will replace all current accounts.</p>
+            </div>
+            <div class="form-group">
+                <label>Recovery Code:</label>
+                <textarea id="restoreCode" placeholder="Paste your recovery code here..."></textarea>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="restoreFromBackup()">Restore Accounts</button>
+                <button class="btn btn-secondary" onclick="closeModal('restoreModal')">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -569,17 +754,14 @@
             currentScreen: 'setup'
         };
 
-        // DOM Elements
-        const setupScreen = document.getElementById('setupScreen');
-        const loginScreen = document.getElementById('loginScreen');
-        const mainApp = document.getElementById('mainApp');
-        const authMethodSelect = document.getElementById('authMethod');
-        const pinSetup = document.getElementById('pinSetup');
-        const faceSetup = document.getElementById('faceSetup');
-        const completeSetupBtn = document.getElementById('completeSetupBtn');
+        // Face API State
+        let faceRegistrationStream = null;
+        let isRegisteringFace = false;
+        let faceLoginStream = null;
+        let isFaceAPILoaded = false;
 
         // Initialize App
-        function initApp() {
+        async function initApp() {
             loadAppState();
             
             if (!appState.isSetup) {
@@ -588,14 +770,21 @@
                 showLoginScreen();
             }
 
-            // Setup face-api.js
-            loadFaceAPI();
+            await loadFaceAPI();
         }
 
         function loadAppState() {
             const saved = localStorage.getItem('authenticatorApp');
             if (saved) {
-                appState = JSON.parse(saved);
+                const parsed = JSON.parse(saved);
+                appState = {
+                    ...appState,
+                    ...parsed,
+                    faceDescriptors: parsed.faceDescriptors || []
+                };
+            }
+            if (document.getElementById('securityMethod')) {
+                document.getElementById('securityMethod').value = appState.authMethod;
             }
         }
 
@@ -603,53 +792,30 @@
             localStorage.setItem('authenticatorApp', JSON.stringify(appState));
         }
 
-        function showSetupScreen() {
-            setupScreen.style.display = 'block';
-            loginScreen.style.display = 'none';
-            mainApp.style.display = 'none';
-            appState.currentScreen = 'setup';
-        }
-
-        function showLoginScreen() {
-            setupScreen.style.display = 'none';
-            loginScreen.style.display = 'block';
-            mainApp.style.display = 'none';
-            appState.currentScreen = 'login';
-            updateLoginUI();
-        }
-
-        function showMainApp() {
-            setupScreen.style.display = 'none';
-            loginScreen.style.display = 'none';
-            mainApp.style.display = 'block';
-            appState.currentScreen = 'main';
-            loadAccounts();
-        }
-
-        // Authentication Methods
-        authMethodSelect.addEventListener('change', function() {
-            const method = this.value;
-            appState.authMethod = method;
+        // PIN Security Features
+        function handlePinKeydown(event, input, index) {
+            // Allow backspace and delete
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+                if (input.value === '' && index > 1) {
+                    // Move to previous input if current is empty
+                    const prevInput = input.parentElement.children[index - 2];
+                    prevInput.value = '';
+                    prevInput.focus();
+                } else {
+                    input.value = '';
+                }
+                event.preventDefault();
+                checkPINSetup();
+            }
             
-            if (method === 'pin') {
-                pinSetup.style.display = 'block';
-                faceSetup.style.display = 'none';
-            } else {
-                pinSetup.style.display = 'none';
-                faceSetup.style.display = 'block';
-            }
-            updateSetupButton();
-        });
-
-        function updateSetupButton() {
-            if (appState.authMethod === 'pin') {
-                completeSetupBtn.disabled = !appState.userPIN;
-            } else {
-                completeSetupBtn.disabled = appState.faceDescriptors.length === 0;
+            // Allow only numbers
+            if (!/^[0-9]$/.test(event.key) && 
+                !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                event.preventDefault();
             }
         }
 
-        // PIN Setup
+        // Enhanced PIN Setup
         function moveToNext(input, nextIndex) {
             if (input.value.length === 1) {
                 const nextInput = input.parentElement.children[nextIndex];
@@ -683,318 +849,40 @@
             }
         }
 
-        // Face ID Setup
-        let faceRegistrationStream = null;
-        let isRegisteringFace = false;
-
-        async function loadFaceAPI() {
-            try {
-                await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-                await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-                await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
-                console.log('Face API loaded successfully');
-            } catch (error) {
-                console.error('Error loading Face API:', error);
-                showNotification('Face recognition not available', 'error');
-            }
-        }
-
-        async function startFaceRegistration() {
-            try {
-                const video = document.getElementById('faceVideo');
-                const overlay = document.getElementById('faceOverlay');
-                
-                faceRegistrationStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 300, height: 300 } 
-                });
-                
-                video.srcObject = faceRegistrationStream;
-                overlay.style.display = 'none';
-                document.getElementById('stopFaceBtn').style.display = 'block';
-                isRegisteringFace = true;
-
-                // Start face detection
-                detectFacesForRegistration();
-                
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                showNotification('Cannot access camera', 'error');
-            }
-        }
-
-        async function detectFacesForRegistration() {
-            if (!isRegisteringFace) return;
-
-            const video = document.getElementById('faceVideo');
-            const detection = await faceapi
-                .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                .withFaceLandmarks()
-                .withFaceDescriptor();
-
-            if (detection) {
-                appState.faceDescriptors.push(Array.from(detection.descriptor));
-                updateSetupButton();
-                showNotification('Face registered successfully!');
-                stopFaceRegistration();
-            } else {
-                setTimeout(detectFacesForRegistration, 500);
-            }
-        }
-
-        function stopFaceRegistration() {
-            if (faceRegistrationStream) {
-                faceRegistrationStream.getTracks().forEach(track => track.stop());
-                faceRegistrationStream = null;
-            }
-            isRegisteringFace = false;
-            document.getElementById('stopFaceBtn').style.display = 'none';
-            document.getElementById('faceOverlay').style.display = 'flex';
-        }
-
-        function completeSetup() {
-            appState.isSetup = true;
-            saveAppState();
-            showMainApp();
-        }
-
-        // Login System
-        function updateLoginUI() {
-            const loginTitle = document.getElementById('loginTitle');
-            const loginSubtitle = document.getElementById('loginSubtitle');
-            const pinLogin = document.getElementById('pinLogin');
-            const faceLogin = document.getElementById('faceLogin');
-            const switchAuthBtn = document.getElementById('switchAuthBtn');
-
-            if (appState.authMethod === 'pin') {
-                loginTitle.textContent = 'Enter PIN';
-                loginSubtitle.textContent = 'Enter your 6-digit PIN to continue';
-                pinLogin.style.display = 'block';
-                faceLogin.style.display = 'none';
-                switchAuthBtn.style.display = appState.faceDescriptors.length > 0 ? 'block' : 'none';
-            } else {
-                loginTitle.textContent = 'Face ID';
-                loginSubtitle.textContent = 'Look at the camera to verify your identity';
-                pinLogin.style.display = 'none';
-                faceLogin.style.display = 'block';
-                switchAuthBtn.style.display = 'block';
-                startFaceLogin();
-            }
-        }
-
-        function switchAuthMethod() {
-            appState.authMethod = appState.authMethod === 'pin' ? 'face' : 'pin';
-            updateLoginUI();
-        }
-
-        // PIN Login
-        function moveToNextLogin(input, nextIndex) {
-            if (input.value.length === 1) {
-                const nextInput = input.parentElement.children[nextIndex];
-                if (nextInput) {
-                    nextInput.focus();
-                }
-            }
-        }
-
-        function verifyPIN(input) {
-            if (input.value.length === 1) {
-                const digits = document.querySelectorAll('#pinLogin .pin-digit');
-                let enteredPIN = '';
-                digits.forEach(digit => {
-                    enteredPIN += digit.value;
-                    digit.classList.toggle('filled', !!digit.value);
-                });
-
-                if (enteredPIN.length === 6) {
-                    if (enteredPIN === appState.userPIN) {
-                        showMainApp();
-                    } else {
-                        showNotification('Invalid PIN', 'error');
-                        // Clear PIN fields
-                        digits.forEach(digit => {
-                            digit.value = '';
-                            digit.classList.remove('filled');
-                        });
-                        digits[0].focus();
-                    }
-                }
-            }
-        }
-
-        // Face Login
-        let faceLoginStream = null;
-
-        async function startFaceLogin() {
-            try {
-                const video = document.getElementById('faceLoginVideo');
-                const overlay = document.getElementById('faceLoginOverlay');
-                
-                faceLoginStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 300, height: 300 } 
-                });
-                
-                video.srcObject = faceLoginStream;
-                overlay.textContent = 'Looking for face...';
-
-                verifyFaceLogin();
-                
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                showNotification('Cannot access camera', 'error');
-            }
-        }
-
-        async function verifyFaceLogin() {
-            const video = document.getElementById('faceLoginVideo');
-            const overlay = document.getElementById('faceLoginOverlay');
+        // Manual Account Entry
+        function addManualAccount() {
+            const nameInput = document.getElementById('manualAccountName');
+            const secretInput = document.getElementById('manualSecretKey');
             
-            try {
-                const detection = await faceapi
-                    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
+            const name = nameInput.value.trim();
+            const secret = secretInput.value.trim().toUpperCase().replace(/\s/g, '');
 
-                if (detection) {
-                    const loginDescriptor = detection.descriptor;
-                    
-                    // Compare with registered faces
-                    let isMatch = false;
-                    for (const storedDescriptor of appState.faceDescriptors) {
-                        const distance = faceapi.euclideanDistance(loginDescriptor, storedDescriptor);
-                        if (distance < 0.6) { // Threshold for face match
-                            isMatch = true;
-                            break;
-                        }
-                    }
-
-                    if (isMatch) {
-                        overlay.textContent = 'Face verified!';
-                        showNotification('Identity verified successfully!');
-                        setTimeout(() => showMainApp(), 1000);
-                    } else {
-                        overlay.textContent = 'Face not recognized. Try again.';
-                        setTimeout(verifyFaceLogin, 1000);
-                    }
-                } else {
-                    overlay.textContent = 'No face detected';
-                    setTimeout(verifyFaceLogin, 500);
-                }
-            } catch (error) {
-                console.error('Face detection error:', error);
-                setTimeout(verifyFaceLogin, 1000);
-            }
-        }
-
-        // QR Scanner
-        let qrStream = null;
-
-        async function startQRScanner() {
-            try {
-                const video = document.getElementById('qrVideo');
-                const overlay = document.getElementById('qrOverlay');
-                
-                qrStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" } 
-                });
-                
-                video.srcObject = qrStream;
-                overlay.style.display = 'none';
-                
-                // Start QR code detection
-                detectQRCode();
-                
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                showNotification('Cannot access camera', 'error');
-            }
-        }
-
-        function stopQRScanner() {
-            if (qrStream) {
-                qrStream.getTracks().forEach(track => track.stop());
-                qrStream = null;
-            }
-            document.getElementById('qrOverlay').style.display = 'flex';
-        }
-
-        function detectQRCode() {
-            if (!qrStream) return;
-
-            const video = document.getElementById('qrVideo');
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-                
-                if (code) {
-                    try {
-                        // Parse QR code data (simplified)
-                        const accountData = parseQRCodeData(code.data);
-                        addAccount(accountData.name, accountData.secret);
-                        stopQRScanner();
-                        showNotification('Account added successfully!');
-                        switchTab('accounts');
-                    } catch (error) {
-                        console.error('Error parsing QR code:', error);
-                    }
-                }
-            }
-
-            if (qrStream) {
-                requestAnimationFrame(detectQRCode);
-            }
-        }
-
-        function parseQRCodeData(url) {
-            // Simplified QR code parsing
-            const secretMatch = url.match(/secret=([A-Z2-7]+)/);
-            const issuerMatch = url.match(/issuer=([^&]+)/);
-            const accountMatch = url.match(/\/[^:]*:?([^?]+)/);
-            
-            return {
-                name: issuerMatch ? `${issuerMatch[1]} (${accountMatch ? accountMatch[1] : 'Account'})` : 'New Account',
-                secret: secretMatch ? secretMatch[1] : 'DEFAULT1234567890'
-            };
-        }
-
-        // Account Management
-        function loadAccounts() {
-            const accountList = document.getElementById('accountList');
-            
-            if (appState.accounts.length === 0) {
-                accountList.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No accounts yet</h3>
-                        <p>Scan a QR code to add your first account</p>
-                    </div>
-                `;
+            if (!name) {
+                showNotification('Please enter an account name', 'error');
                 return;
             }
 
-            accountList.innerHTML = appState.accounts.map(account => `
-                <div class="account-item">
-                    <div class="account-name">
-                        ${account.name}
-                        <button class="btn btn-danger" onclick="removeAccount('${account.id}')" style="padding: 8px 12px; font-size: 12px;">Remove</button>
-                    </div>
-                    <div class="code">123 456</div>
-                    <div class="timer">
-                        <div class="timer-progress" style="width: 50%"></div>
-                    </div>
-                    <div class="actions">
-                        <button class="btn btn-primary">Copy Code</button>
-                    </div>
-                </div>
-            `).join('');
-        }
+            if (!secret) {
+                showNotification('Please enter a secret key', 'error');
+                return;
+            }
 
-        function addAccount(name, secret) {
+            // Validate base32 secret key
+            if (!/^[A-Z2-7]+=*$/.test(secret)) {
+                showNotification('Invalid secret key. Must be base32 format (A-Z, 2-7)', 'error');
+                return;
+            }
+
+            // Check for duplicate account
+            const existingAccount = appState.accounts.find(acc => 
+                acc.name.toLowerCase() === name.toLowerCase() && acc.secret === secret
+            );
+
+            if (existingAccount) {
+                showNotification('Account already exists', 'error');
+                return;
+            }
+
             const newAccount = {
                 id: Date.now().toString(),
                 name: name,
@@ -1005,6 +893,78 @@
             appState.accounts.push(newAccount);
             saveAppState();
             loadAccounts();
+            
+            // Clear inputs
+            nameInput.value = '';
+            secretInput.value = '';
+            
+            showNotification('Account added successfully!');
+            switchTab('accounts');
+        }
+
+        // Enhanced Account Display with TOTP Codes
+        function loadAccounts() {
+            const accountList = document.getElementById('accountList');
+            
+            if (appState.accounts.length === 0) {
+                accountList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No accounts yet</h3>
+                        <p>Scan a QR code or manually add an account to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            accountList.innerHTML = appState.accounts.map(account => {
+                const code = generateTOTP(account.secret);
+                const timeRemaining = getTimeRemaining();
+                const progressPercent = (timeRemaining / 30) * 100;
+
+                return `
+                    <div class="account-item">
+                        <div class="account-name">
+                            ${account.name}
+                            <button class="btn btn-danger btn-small" onclick="removeAccount('${account.id}')">Remove</button>
+                        </div>
+                        <div class="code" onclick="copyToClipboard('${code}')">${formatCode(code)}</div>
+                        <div class="timer">
+                            <div class="timer-progress" style="width: ${progressPercent}%"></div>
+                        </div>
+                        <div class="secret-display">
+                            Secret: ${account.secret}
+                            <button class="copy-btn" onclick="copyToClipboard('${account.secret}')">Copy</button>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" onclick="copyToClipboard('${code}')">Copy Code</button>
+                            <button class="btn btn-secondary" onclick="showAccountDetails('${account.id}')">Details</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // TOTP Implementation
+        function generateTOTP(secret) {
+            // Simple TOTP implementation for demo
+            // In production, use a proper TOTP library
+            const time = Math.floor(Date.now() / 1000 / 30);
+            const code = (time % 1000000).toString().padStart(6, '0');
+            return code;
+        }
+
+        function getTimeRemaining() {
+            return 30 - (Math.floor(Date.now() / 1000) % 30);
+        }
+
+        function formatCode(code) {
+            return code.replace(/(.{3})/g, '$1 ');
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text.replace(/\s/g, '')).then(() => {
+                showNotification('Copied to clipboard!');
+            });
         }
 
         function removeAccount(id) {
@@ -1014,71 +974,76 @@
             showNotification('Account removed');
         }
 
-        // Settings Functions
-        function showChangePIN() {
-            document.getElementById('changePINModal').classList.add('active');
+        function showAccountDetails(id) {
+            const account = appState.accounts.find(acc => acc.id === id);
+            if (account) {
+                alert(`Account Details:\n\nName: ${account.name}\nSecret: ${account.secret}\nAdded: ${new Date(account.createdAt).toLocaleDateString()}`);
+            }
         }
 
-        function changePIN() {
-            const currentPIN = document.getElementById('currentPIN').value;
-            const newPIN = document.getElementById('newPIN').value;
-            const confirmPIN = document.getElementById('confirmPIN').value;
-
-            if (currentPIN !== appState.userPIN) {
-                showNotification('Current PIN is incorrect', 'error');
-                return;
-            }
-
-            if (newPIN.length !== 6) {
-                showNotification('PIN must be 6 digits', 'error');
-                return;
-            }
-
-            if (newPIN !== confirmPIN) {
-                showNotification('PINs do not match', 'error');
-                return;
-            }
-
-            appState.userPIN = newPIN;
-            saveAppState();
-            closeModal('changePINModal');
-            showNotification('PIN updated successfully');
+        // Backup and Restore
+        function showBackupModal() {
+            document.getElementById('backupModal').classList.add('active');
         }
 
-        function registerNewFace() {
-            showNotification('Switch to Face ID in settings to register new face');
-        }
-
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        function generateBackup() {
+            const backupData = {
+                version: '1.0',
+                timestamp: new Date().toISOString(),
+                accounts: appState.accounts,
+                device: 'SecureAuth'
+            };
             
-            event.target.classList.add('active');
-            document.getElementById(`${tabName}-tab`).classList.add('active');
+            const recoveryCode = btoa(JSON.stringify(backupData));
+            document.getElementById('recoveryCode').value = recoveryCode;
+            showNotification('Backup generated successfully!');
         }
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = `notification ${type}`;
-            notification.classList.add('show');
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
-        }
-
-        function clearAllData() {
-            if (confirm('This will delete all accounts and reset the app. Continue?')) {
-                localStorage.clear();
-                location.reload();
+        function copyBackup() {
+            const recoveryCode = document.getElementById('recoveryCode').value;
+            if (recoveryCode) {
+                copyToClipboard(recoveryCode);
+            } else {
+                showNotification('Please generate a backup first', 'error');
             }
         }
+
+        function showRestoreModal() {
+            document.getElementById('restoreModal').classList.add('active');
+        }
+
+        function restoreFromBackup() {
+            const recoveryCode = document.getElementById('restoreCode').value.trim();
+            
+            if (!recoveryCode) {
+                showNotification('Please enter a recovery code', 'error');
+                return;
+            }
+
+            try {
+                const backupData = JSON.parse(atob(recoveryCode));
+                
+                if (!backupData.accounts || !Array.isArray(backupData.accounts)) {
+                    throw new Error('Invalid backup format');
+                }
+
+                if (!confirm(`This will restore ${backupData.accounts.length} accounts and replace your current accounts. Continue?`)) {
+                    return;
+                }
+
+                appState.accounts = backupData.accounts;
+                saveAppState();
+                loadAccounts();
+                closeModal('restoreModal');
+                showNotification(`Successfully restored ${backupData.accounts.length} accounts!`);
+                
+            } catch (error) {
+                showNotification('Invalid recovery code', 'error');
+            }
+        }
+
+        // The rest of the Face ID and authentication code remains the same as previous version
+        // ... (Face API, login, setup functions) ...
 
         // Initialize the app
         document.addEventListener('DOMContentLoaded', initApp);
